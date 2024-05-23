@@ -12,4 +12,12 @@ export interface CrmNotificationSettings {
   /** Indica se uma falha no envio da notificação deve lançar um erro. Por padrão, o erro é logado porém não é repassado para frente. */
   shouldThrow?: boolean
   isFallback?: boolean
+  influencerInfo?: {
+    phoneNumber?: string | null
+    profileId?: string | null
+    language: string
+    allowEmail?: boolean
+    allowSMS?: boolean
+    allowWhatsapp?: boolean
+  }
 }

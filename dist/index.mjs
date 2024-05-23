@@ -65,26 +65,7 @@ var CrmClient = class _CrmClient {
   // TODO: adicionar comentários em todos os parâmetros
   sendNotification(recipientInfo, templateName, templateValues, settings) {
     return __async(this, null, function* () {
-      var _a, _b;
-      const message = __spreadProps(__spreadValues(__spreadProps(__spreadValues({
-        templateName,
-        methods: (_a = settings == null ? void 0 : settings.sendOnlyToSpecificChannels) != null ? _a : []
-      }, typeof templateValues.campaignId === "string" && { campaignId: templateValues.campaignId }), {
-        recipient: {
-          from: {
-            email: settings == null ? void 0 : settings.customSenderEmail,
-            name: settings == null ? void 0 : settings.customSenderName
-          },
-          to: recipientInfo,
-          replyTo: settings == null ? void 0 : settings.customReplyTo,
-          customSubject: settings == null ? void 0 : settings.customSubject
-        },
-        data: templateValues,
-        saveLog: !!(settings == null ? void 0 : settings.logData)
-      }), (settings == null ? void 0 : settings.logData) && { logData: settings == null ? void 0 : settings.logData }), {
-        sendOnlyToQueueChannels: !!((_b = settings == null ? void 0 : settings.sendOnlyToSpecificChannels) == null ? void 0 : _b.length),
-        tracerMessageId: uuidv4()
-      });
+      const message = this.buildNotification(recipientInfo, templateName, templateValues, settings);
       try {
         const messageId = yield this.pubsubInstance.topic(this.topicName).publishMessage({ json: message });
         this.loggerInstance.Info({
@@ -129,6 +110,74 @@ var CrmClient = class _CrmClient {
         if (settings == null ? void 0 : settings.shouldThrow) {
           throw error;
         }
+      }
+    });
+  }
+  buildNotification(recipientInfo, templateName, templateValues, settings) {
+    var _a, _b;
+    return __spreadValues(__spreadProps(__spreadValues(__spreadProps(__spreadValues({
+      templateName,
+      methods: (_a = settings == null ? void 0 : settings.sendOnlyToSpecificChannels) != null ? _a : []
+    }, typeof templateValues.campaignId === "string" && { campaignId: templateValues.campaignId }), {
+      recipient: {
+        from: {
+          email: settings == null ? void 0 : settings.customSenderEmail,
+          name: settings == null ? void 0 : settings.customSenderName
+        },
+        to: recipientInfo,
+        replyTo: settings == null ? void 0 : settings.customReplyTo,
+        customSubject: settings == null ? void 0 : settings.customSubject
+      },
+      data: templateValues,
+      saveLog: !!(settings == null ? void 0 : settings.logData)
+    }), (settings == null ? void 0 : settings.logData) && { logData: settings == null ? void 0 : settings.logData }), {
+      sendOnlyToQueueChannels: !!((_b = settings == null ? void 0 : settings.sendOnlyToSpecificChannels) == null ? void 0 : _b.length),
+      isFallback: settings == null ? void 0 : settings.isFallback,
+      tracerMessageId: uuidv4()
+    }), (settings == null ? void 0 : settings.influencerInfo) && { user: settings == null ? void 0 : settings.influencerInfo });
+  }
+  sendManyNotifications(crmMessages) {
+    return __async(this, null, function* () {
+      var _a, _b;
+      try {
+        const messageId = yield this.pubsubInstance.topic(this.topicName).publishMessage({ json: crmMessages });
+        this.loggerInstance.Info({
+          event: "publish-message",
+          status: "success",
+          stage: "emitter",
+          // destination,
+          topic: this.topicName,
+          messageId,
+          crmMessages,
+          tracerMessageId: (_a = crmMessages[0]) == null ? void 0 : _a.tracerMessageId
+        });
+        return messageId;
+      } catch (error) {
+        this.loggerInstance.Info({
+          event: "publish-message",
+          status: "failure",
+          stage: "emitter",
+          // destination,
+          topicName: this.topicName,
+          messageId: null,
+          crmMessages,
+          tracerMessageId: (_b = crmMessages[0]) == null ? void 0 : _b.tracerMessageId,
+          error: {
+            name: error && typeof error === "object" && "name" in error && error.name ? error.name : null,
+            code: error && typeof error === "object" && "code" in error && error.code ? error.code : null,
+            message: error && typeof error === "object" && "message" in error && error.message ? error.message : null,
+            stack: error && typeof error === "object" && "stack" in error && error.stack ? error.stack : null
+          }
+        });
+        this.loggerInstance.Error(
+          this.errorConverter.Create({
+            message: `Error publishing message to topic ${this.topicName}`,
+            detail: {
+              crmMessages
+            }
+          }, error)
+        );
+        throw error;
       }
     });
   }

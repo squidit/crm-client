@@ -53,27 +53,7 @@ export class CrmClient {
     templateValues: Record<string, unknown>,
     settings?: CrmNotificationSettings
   ): Promise<void> {
-    // TODO: checar campo a campo se está tudo aqui
-    const message: CrmMessage = {
-      templateName,
-      methods: settings?.sendOnlyToSpecificChannels ?? [],
-      ...typeof templateValues.campaignId === 'string' && { campaignId: templateValues.campaignId },
-      recipient: {
-        from: {
-          email: settings?.customSenderEmail,
-          name: settings?.customSenderName
-        },
-        to: recipientInfo,
-        replyTo: settings?.customReplyTo,
-        customSubject: settings?.customSubject
-      },
-      data: templateValues,
-      saveLog: !!settings?.logData,
-      ...settings?.logData && { logData: settings?.logData },
-      sendOnlyToQueueChannels: !!settings?.sendOnlyToSpecificChannels?.length,
-      tracerMessageId: uuidv4(),
-      isFallback: settings?.isFallback
-    }
+    const message = this.buildNotification(recipientInfo, templateName, templateValues, settings)
 
     try {
       const messageId = await this.pubsubInstance
@@ -125,6 +105,86 @@ export class CrmClient {
       if (settings?.shouldThrow) {
         throw error
       }
+    }
+  }
+
+  public buildNotification (
+    recipientInfo: CrmRecipientInfo,
+    templateName: string,
+    templateValues: Record<string, unknown>,
+    settings?: CrmNotificationSettings
+  ): CrmMessage {
+    // TODO: checar campo a campo se está tudo aqui
+    return {
+      templateName,
+      methods: settings?.sendOnlyToSpecificChannels ?? [],
+      ...typeof templateValues.campaignId === 'string' && { campaignId: templateValues.campaignId },
+      recipient: {
+        from: {
+          email: settings?.customSenderEmail,
+          name: settings?.customSenderName
+        },
+        to: recipientInfo,
+        replyTo: settings?.customReplyTo,
+        customSubject: settings?.customSubject
+      },
+      data: templateValues,
+      saveLog: !!settings?.logData,
+      ...settings?.logData && { logData: settings?.logData },
+      sendOnlyToQueueChannels: !!settings?.sendOnlyToSpecificChannels?.length,
+      isFallback: settings?.isFallback,
+      tracerMessageId: uuidv4(),
+      ...settings?.influencerInfo && { user: settings?.influencerInfo }
+    }
+  }
+
+  public async sendManyNotifications (crmMessages: CrmMessage[]): Promise<string> {
+    try {
+      const messageId = await this.pubsubInstance
+        .topic(this.topicName)
+        .publishMessage({ json: crmMessages })
+
+      this.loggerInstance.Info({
+        event: 'publish-message',
+        status: 'success',
+        stage: 'emitter',
+        // destination,
+        topic: this.topicName,
+        messageId,
+        crmMessages,
+        tracerMessageId: crmMessages[0]?.tracerMessageId
+      })
+
+      return messageId
+    } catch (error) {
+      // trace logging
+      this.loggerInstance.Info({
+        event: 'publish-message',
+        status: 'failure',
+        stage: 'emitter',
+        // destination,
+        topicName: this.topicName,
+        messageId: null,
+        crmMessages,
+        tracerMessageId: crmMessages[0]?.tracerMessageId,
+        error: {
+          name: error && typeof error === 'object' && 'name' in error && error.name ? error.name : null,
+          code: error && typeof error === 'object' && 'code' in error && error.code ? error.code : null,
+          message: error && typeof error === 'object' && 'message' in error && error.message ? error.message : null,
+          stack: error && typeof error === 'object' && 'stack' in error && error.stack ? error.stack : null
+        }
+      })
+
+      // error logging
+      this.loggerInstance.Error(
+        this.errorConverter.Create({
+          message: `Error publishing message to topic ${this.topicName}`,
+          detail: {
+            crmMessages
+          }
+        }, error))
+
+      throw error
     }
   }
 }

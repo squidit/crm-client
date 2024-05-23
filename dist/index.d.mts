@@ -21,6 +21,7 @@ interface CrmMessage {
             organization?: string;
         };
     };
+    isFallback?: boolean;
     data?: Record<string, unknown>;
     saveLog: boolean;
     logData?: Record<string, unknown> | null;
@@ -39,6 +40,15 @@ interface CrmNotificationSettings {
     sendOnlyToSpecificChannels?: NotificationChannel[];
     /** Indica se uma falha no envio da notificação deve lançar um erro. Por padrão, o erro é logado porém não é repassado para frente. */
     shouldThrow?: boolean;
+    isFallback?: boolean;
+    influencerInfo?: {
+        phoneNumber?: string | null;
+        profileId?: string | null;
+        language: string;
+        allowEmail?: boolean;
+        allowSMS?: boolean;
+        allowWhatsapp?: boolean;
+    };
 }
 
 interface CrmRecipientInfo {
@@ -66,6 +76,8 @@ declare class CrmClient {
     static getInstance(): CrmClient;
     static init(projectId: string, keyFilename: string, loggerInstance: Logger, errorConverter: ErrorConverter, customTopicName?: string): void;
     sendNotification(recipientInfo: CrmRecipientInfo, templateName: string, templateValues: Record<string, unknown>, settings?: CrmNotificationSettings): Promise<void>;
+    buildNotification(recipientInfo: CrmRecipientInfo, templateName: string, templateValues: Record<string, unknown>, settings?: CrmNotificationSettings): CrmMessage;
+    sendManyNotifications(crmMessages: CrmMessage[]): Promise<string>;
 }
 
 export { CrmClient, type CrmMessage, type CrmNotificationSettings, type CrmRecipientInfo, type NotificationChannel };
