@@ -43,14 +43,15 @@ import { PubSub } from "@google-cloud/pubsub";
 import { v4 as uuidv4 } from "uuid";
 var CrmClient = class _CrmClient {
   constructor(projectId, keyFilename, loggerInstance, errorConverter, customTopicName) {
-    const topicName = customTopicName != null ? customTopicName : process.env.CRM_NOTIFICATION_TOPIC;
-    if (!topicName) {
+    const notificationTopicName = customTopicName != null ? customTopicName : process.env.CRM_NOTIFICATION_TOPIC;
+    this.opportunityTopicName = process.env.CRM_OPPORTUNITY_TOPIC;
+    if (!notificationTopicName) {
       throw new Error("CRM topic name not provided. Either add the CRM_NOTIFICATION_TOPIC environment variable or provide a custom topic name");
     }
     this.pubsubInstance = new PubSub({ projectId, keyFilename });
     this.loggerInstance = loggerInstance;
     this.errorConverter = errorConverter;
-    this.topicName = topicName;
+    this.notificationTopicName = notificationTopicName;
   }
   static getInstance() {
     if (!_CrmClient.instance) {
@@ -83,16 +84,17 @@ var CrmClient = class _CrmClient {
         saveLog: !!(settings == null ? void 0 : settings.logData)
       }), (settings == null ? void 0 : settings.logData) && { logData: settings == null ? void 0 : settings.logData }), {
         sendOnlyToQueueChannels: !!((_b = settings == null ? void 0 : settings.sendOnlyToSpecificChannels) == null ? void 0 : _b.length),
-        tracerMessageId: uuidv4()
+        tracerMessageId: uuidv4(),
+        isFallback: settings == null ? void 0 : settings.isFallback
       });
       try {
-        const messageId = yield this.pubsubInstance.topic(this.topicName).publishMessage({ json: message });
+        const messageId = yield this.pubsubInstance.topic(this.notificationTopicName).publishMessage({ json: message });
         this.loggerInstance.Info({
           event: "publish-message",
           status: "success",
           stage: "emitter",
           // destination,
-          topic: this.topicName,
+          topic: this.notificationTopicName,
           messageId,
           message,
           tracerMessageId: message.tracerMessageId
@@ -103,7 +105,7 @@ var CrmClient = class _CrmClient {
           status: "failure",
           stage: "emitter",
           // destination,
-          topicName: this.topicName,
+          topicName: this.notificationTopicName,
           messageId: null,
           message,
           tracerMessageId: message.tracerMessageId,
@@ -116,7 +118,7 @@ var CrmClient = class _CrmClient {
         });
         this.loggerInstance.Error(
           this.errorConverter.Create({
-            message: `Error publishing message to topic ${this.topicName}`,
+            message: `Error publishing message to topic ${this.notificationTopicName}`,
             detail: {
               campaignId: message.campaignId,
               templateName: message.templateName,
@@ -129,6 +131,50 @@ var CrmClient = class _CrmClient {
         if (settings == null ? void 0 : settings.shouldThrow) {
           throw error;
         }
+      }
+    });
+  }
+  processOpportunity(opportunityId) {
+    return __async(this, null, function* () {
+      if (!this.opportunityTopicName) {
+        throw new Error("CRM opportunity topic name not provided. Add the CRM_OPPORTUNITY_TOPIC environment variable.");
+      }
+      const message = { opportunityId, tracerMessageId: uuidv4() };
+      try {
+        const messageId = yield this.pubsubInstance.topic(this.opportunityTopicName).publishMessage({ json: message });
+        this.loggerInstance.Info({
+          event: "publish-opportunity-processing",
+          status: "success",
+          stage: "emitter",
+          topic: this.opportunityTopicName,
+          messageId,
+          message,
+          tracerMessageId: message.tracerMessageId
+        });
+      } catch (error) {
+        this.loggerInstance.Info({
+          event: "publish-message",
+          status: "failure",
+          stage: "emitter",
+          // destination,
+          topicName: this.opportunityTopicName,
+          messageId: null,
+          message,
+          tracerMessageId: message.tracerMessageId,
+          error: {
+            name: error && typeof error === "object" && "name" in error && error.name ? error.name : null,
+            code: error && typeof error === "object" && "code" in error && error.code ? error.code : null,
+            message: error && typeof error === "object" && "message" in error && error.message ? error.message : null,
+            stack: error && typeof error === "object" && "stack" in error && error.stack ? error.stack : null
+          }
+        });
+        this.loggerInstance.Error(
+          this.errorConverter.Create({
+            message: `Error publishing message to topic ${this.opportunityTopicName}`,
+            detail: { originalMessage: message }
+          }, error)
+        );
+        throw error;
       }
     });
   }
