@@ -69,7 +69,7 @@ declare class CrmClient {
     static getInstance(): CrmClient;
     static init(projectId: string, keyFilename: string, loggerInstance: Logger, errorConverter: ErrorConverter, customTopicName?: string): void;
     sendNotification(recipientInfo: CrmRecipientInfo, templateName: string, templateValues: Record<string, unknown>, settings?: CrmNotificationSettings): Promise<void>;
-    processOpportunity(opportunityId: string): Promise<void>;
+    processOpportunity(opportunityId: string, tracerMessageId: string): Promise<void>;
 }
 
 export { CrmClient, type CrmMessage, type CrmNotificationSettings, type CrmRecipientInfo, type NotificationChannel };
