@@ -130,18 +130,19 @@ export class CrmClient {
     }
   }
 
-  public async processOpportunity (opportunityId: string): Promise<void> {
+  public async processOpportunity (opportunityId: string, tracerMessageId: string): Promise<void> {
     if (!this.opportunityTopicName) {
       throw new Error('CRM opportunity topic name not provided. Add the CRM_OPPORTUNITY_TOPIC environment variable.')
     }
-    const message = { opportunityId, tracerMessageId: uuidv4() }
+    const message = { opportunityId, tracerMessageId }
     try {
       const messageId = await this.pubsubInstance
         .topic(this.opportunityTopicName)
         .publishMessage({ json: message })
 
       this.loggerInstance.Info({
-        event: 'publish-opportunity-processing',
+        event: 'opportunity-processing',
+        step: 'message-publishing',
         status: 'success',
         stage: 'emitter',
         topic: this.opportunityTopicName,
@@ -152,7 +153,8 @@ export class CrmClient {
     } catch (error) {
       // trace logging
       this.loggerInstance.Info({
-        event: 'publish-message',
+        event: 'opportunity-processing',
+        step: 'message-publishing',
         status: 'failure',
         stage: 'emitter',
         // destination,

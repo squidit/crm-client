@@ -134,16 +134,17 @@ var CrmClient = class _CrmClient {
       }
     });
   }
-  processOpportunity(opportunityId) {
+  processOpportunity(opportunityId, tracerMessageId) {
     return __async(this, null, function* () {
       if (!this.opportunityTopicName) {
         throw new Error("CRM opportunity topic name not provided. Add the CRM_OPPORTUNITY_TOPIC environment variable.");
       }
-      const message = { opportunityId, tracerMessageId: uuidv4() };
+      const message = { opportunityId, tracerMessageId };
       try {
         const messageId = yield this.pubsubInstance.topic(this.opportunityTopicName).publishMessage({ json: message });
         this.loggerInstance.Info({
-          event: "publish-opportunity-processing",
+          event: "opportunity-processing",
+          step: "message-publishing",
           status: "success",
           stage: "emitter",
           topic: this.opportunityTopicName,
@@ -153,7 +154,8 @@ var CrmClient = class _CrmClient {
         });
       } catch (error) {
         this.loggerInstance.Info({
-          event: "publish-message",
+          event: "opportunity-processing",
+          step: "message-publishing",
           status: "failure",
           stage: "emitter",
           // destination,
